@@ -1,0 +1,260 @@
+---
+title: "Cyclistic Bike-share case study"
+author: "Subasree"
+date: '2022-04-24'
+output:
+  html_document: default
+  pdf_document: default
+---
+## Loading the necessary packages 
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(lubridate)
+library(janitor)
+library(ggplot2)
+library(geosphere)
+```
+## Reading the datasets in the csv files to dataframes 
+
+```{r}
+Apr_2021_df <- read.csv("Bikeshare_casestudy_202104_divvy_tripdata.csv")
+May_2021_df <- read.csv("Bikeshare_casestudy_202105_divvy_tripdata.csv")
+Jun_2021_df <- read.csv("Bikeshare_casestudy_202106_divvy_trip_data.csv")
+Jul_2021_df <- read.csv("Bikeshare_casestudy_202107_divvy_trip_data.csv")
+Aug_2021_df <- read.csv("Bikeshare_casestudy_202108_divvy_tripdata.csv")
+Sep_2021_df <- read.csv("Bikeshare_casestudy_202109_divvy_trip_data.csv")
+Oct_2021_df <- read.csv("Bikeshare_casestudy_202110_divvy_tripdata.csv")
+Nov_2021_df <- read.csv("Bikeshare_casestudy_202111_divvy_tripdata.csv")
+Dec_2021_df <- read.csv("Bikeshare_casestudy_202112_divvy_tripdata.csv")
+Jan_2022_df <- read.csv("Bikeshare_casestudy_202201_divvy_tripdata.csv")
+Feb_2022_df <- read.csv("Bikeshare_casestudy_202202_divvy_tripdata.csv")
+Mar_2022_df <- read.csv("Bikeshare_casestudy_202203_divvy_tripdata.csv")
+```
+
+
+## Binding the dataframes by rows  
+
+The twelve datasets representing the customer usage of the Cyclistic Bike-share between Apr-2021 and Mar-2022 are imported by using 'readr' library and the rows are binded to form a single dataframe Bikeshare_df 
+
+```{r}
+#Bind all the twelve data sets to a data frame
+bikeshare_df <- bind_rows(Apr_2021_df,May_2021_df,Jun_2021_df,Jul_2021_df,
+                          Aug_2021_df,Sep_2021_df,Oct_2021_df,Nov_2021_df,
+                          Dec_2021_df,Jan_2022_df,Feb_2022_df,Mar_2022_df)
+                          
+#View the data frame(bikeshare_df)
+
+View(bikeshare_df)
+```
+
+## Cleaning the data 
+
+The columns names are verified and the names that are inappropiate are renamed. 
+```{r}
+#Checking and renaming the column names
+
+colnames(bikeshare_df)
+bikeshare_df <- rename(bikeshare_df,Customer_type = member_casual)
+colnames(bikeshare_df)
+bikeshare_df <- rename(bikeshare_df,c(Start_dateTime = started_at,End_dateTime = ended_at))
+
+bikeshare_df <- clean_names(bikeshare_df)
+
+colnames(bikeshare_df)
+
+```
+```{r}
+#Removing the columns and rows that are entirely empty 
+
+bikeshare_df <- remove_empty(bikeshare_df,which = c("rows","cols"))
+
+```
+
+```{r}
+#Taking only the distinct values
+
+bikeshare_df <- distinct(bikeshare_df)
+
+```
+
+```{r}
+#Description of the dataframe  
+
+str(bikeshare_df)
+
+```
+```{r}
+#Changing the datatype of the start and end time to DateTime
+
+start_factor <- as.factor(bikeshare_df$start_date_time)
+end_factor <- as.factor(bikeshare_df$end_date_time)
+
+bikeshare_df$start_date_time <- strptime(start_factor,format = "%m/%d/%Y %H:%M")
+bikeshare_df$end_date_time <- strptime(end_factor,format = "%m/%d/%Y %H:%M")
+
+```
+
+```{r}
+#Calculating the total duration in Minutes and adding the column to the dataframe 
+
+total_duration_in_mins <- difftime(bikeshare_df$end_date_time,bikeshare_df$start_date_time)
+
+total_duration_in_mins <- (as.numeric(total_duration_in_mins))/60
+  
+bikeshare_df <- mutate(bikeshare_df,total_duration_in_mins)
+
+```
+
+```{r}
+#Removing the bad data with negative duration values
+
+bikeshare_df <- bikeshare_df[!(bikeshare_df$total_duration_in_mins < 0),]
+```
+
+
+```{r}
+#Replacing the incorrect customer types
+
+bikeshare_df$customer_type <- recode(bikeshare_df$customer_type,"Subscriber" = "member",
+                                        "Customer" = "casual")
+```
+
+
+```{r}
+#Taking the start and end dates and adding to dataframes 
+
+start_date <- as.Date(bikeshare_df$start_date_time,format = "%Y-%m-%d")
+end_date <- as.Date(bikeshare_df$end_date_time,format = "%Y-%m-%d")
+
+bikeshare_df <- mutate(bikeshare_df,start_date,end_date)
+
+```
+
+```{r}
+#Taking the month, year and week details for visualizing 
+
+time_Period <- format(start_date,"%Y-%m")
+
+bikeshare_df <- mutate(bikeshare_df,time_Period)
+
+days_of_week <- wday(start_date, label = TRUE)
+
+bikeshare_df <- mutate(bikeshare_df,days_of_week)
+```
+
+
+```{r}
+#Sorting in ascending order by date 
+bikeshare_df <- arrange(bikeshare_df,start_date) 
+```
+
+## Descriptive analysis 
+```{r}
+#calculating the distance covered by start and end, latitude and longitude values
+
+bikeshare_df <- bikeshare_df %>% mutate(ride_length = round(distHaversine(cbind(start_lng,start_lat),cbind(end_lng,end_lat)),2))
+
+#Calculating the average ride distance covered by the customers by months
+
+Average_ride_1 <-  bikeshare_df %>% group_by(customer_type,time_Period) %>% drop_na() %>% summarise(Average_ride_length = mean(ride_length))
+
+#Calculating the average ride distance covered by the customers by days of the week
+
+Average_ride_2 <-  bikeshare_df %>% group_by(customer_type,days_of_week) %>% drop_na() %>% summarise(Average_ride_length = mean(ride_length))
+
+#calculating the average time duration by months
+
+Average_ride <- bikeshare_df %>% group_by(customer_type,time_Period) %>% drop_na() %>% summarise(Average_time_taken = mean(total_duration_in_mins))
+
+```
+
+```{r}
+#calculate the Total and maximum number of minutes by both customers over the year
+
+total_mins <- bikeshare_df %>% group_by(customer_type,time_Period) %>% drop_na() %>% summarise(sum(total_duration_in_mins))
+
+max_mins <- bikeshare_df %>% group_by(customer_type,time_Period) %>% drop_na() %>% summarise(max(total_duration_in_mins))
+
+mini_mins <- bikeshare_df %>% group_by(customer_type,time_Period) %>% drop_na() %>% summarise(min(total_duration_in_mins))
+
+View(max_mins)
+View(total_mins)
+View(mini_mins)
+```
+
+
+## Visualizing the data 
+
+After cleaning, adding new columns and analyzing the dataframe, visualizing the data by using ggplot2 library 
+
+```{r}
+#visualizing the Average time period used by both the customer types
+
+ggplot(data = Average_ride,aes(x= time_Period,y= Average_time_taken,fill = customer_type))+
+  geom_bar(position = "dodge",stat="identity")+
+  scale_y_continuous(breaks = c(0,50,100,150,200,250,300,350,400))+
+  theme(axis.text = element_text(angle = 45))+
+  labs(x= "Time period in YYYY-MM",
+       title = "Average time taken by the users between Apr-2021 and Mar-2022")
+```
+
+```{r}
+#visualizing the Average distance for each month by customer types
+
+Average_ride_1 %>% ggplot()+
+  geom_bar(aes(x= time_Period, y= Average_ride_length, fill=customer_type),position= "dodge",   stat="identity",width = 0.7) + 
+  theme(axis.text = element_text(angle = 45))+
+  labs(x= "Time period in YYYY-MM", y = "Average_ride_length",
+       title = "Average distance covered by the users between Apr-2021 and Mar-2022")
+```
+
+```{r}
+##Visualizing the rides covered by days of the week 
+
+bikeshare_df %>% group_by(customer_type,days_of_week) %>% 
+  summarise(number_of_rides = n(),Average_ride_duration = mean(total_duration_in_mins)) %>% 
+  arrange(customer_type,days_of_week) %>% 
+  ggplot(aes(x= days_of_week,y= number_of_rides,fill= customer_type))+
+  geom_bar(position = "dodge",stat= "identity")+
+  labs(x= "Days of the week", y = "no_of_rides",
+       title = "Number of rides covered by the users in each day of the week")
+
+```
+
+```{r}
+#Visualizing the average ride distance covered by days of the week 
+
+ggplot(data = Average_ride_2, aes(x= days_of_week,y= Average_ride_length,fill= customer_type))+
+  geom_bar(position = "dodge", stat = "identity")+
+  theme(axis.text = element_text(angle = 45))+
+  labs(x= "Days of the week", 
+       title = "Average ride distance covered by the users in each day of the week")
+```
+
+```{r}
+#visualizing the different riding type used by both the customers 
+
+ggplot(data = bikeshare_df,aes(x= rideable_type, fill = customer_type))+geom_bar()+
+  facet_wrap(~customer_type)+
+  labs(title = "Range of Bike types used by both the type of customers")
+```
+
+## Key findings
+
+  - By comparing the average duration taken by both the type of customers between April 2021 and March 2022, we can see that the 
+    time period taken by the casuals are greater than the members. 
+  
+  - We can suggest from the findings that the casuals spend more time with the bikes than the members. 
+  
+  - By comparing the number of rides by days of the week, it is seen that the casuals are present more in weekends than the                weekdays.
+  
+  - The average ride distance for the weekends is more for the casuals than the weekdays. This suggest that the members are more of        working professionals and casuals use bikes for entertainment and other non-consistent activities. 
+  
+  - It is also seen that while the casuals increase on weekends, the range of the members is almost the same throughout the week. 
+  
+  - The bike types that casuals use more are the classic and electric bike but the docked bike is used more by casuals than of the         members.
+
+
+
