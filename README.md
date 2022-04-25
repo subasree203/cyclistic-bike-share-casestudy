@@ -9,6 +9,5 @@ The goal of the marketing team is to find a way to make the casuals subscribe to
 They asked to find how the annual members and the casuals use cyclistic bikes differently.
 
 I have used MS Excel to get the samples of the data from April-2021 to March-2022, 
-R for binding, cleaning, calculating, visualizing the data,
-and Tableau for further visualization.  
+R for binding, cleaning, calculating, visualizing the data, and Tableau for further visualization.  
 I have attached the R markdown document and tableau workbooks.
